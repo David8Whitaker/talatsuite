@@ -1377,6 +1377,11 @@ function openMarketCreateSheet() {
         <input class="tin" id="nmp-hours" maxlength="120" placeholder="เช่น เปิดเสาร์–อาทิตย์ 08:00 – 15:00"></div>
       <div class="field"><label for="nmp-emoji">อิโมจิประจำตลาด</label>
         <input class="tin" id="nmp-emoji" maxlength="8" value="🏪"></div>
+      <div class="field"><label for="nmp-type">ประเภทตลาด</label>
+        <select class="tin" id="nmp-type">
+          <option value="night" selected>🌙 ตลาดกลางคืน (ตลาดนัด)</option>
+          <option value="day">☀️ ตลาดกลางวัน (ตลาดสด · ตลาดเช้า)</option>
+        </select></div>
       <h4 class="sheet-sec-title">🗓️ ตารางเปิดทำการ</h4>
       ${scheduleEditorHTML('nmp-sch', { open_days: [0, 1, 2, 3, 4, 5, 6], open_time: '', close_time: '', force_open: null })}
       <button class="btn primary block" id="nmp-save" type="button">สร้างตลาด</button>`,
@@ -1399,6 +1404,7 @@ function openMarketCreateSheet() {
           area: md.body.querySelector('#nmp-area').value,
           hours_text: md.body.querySelector('#nmp-hours').value,
           emoji: md.body.querySelector('#nmp-emoji').value,
+          market_type: md.body.querySelector('#nmp-type').value,
           ...sched,
         },
       });
@@ -2023,6 +2029,11 @@ async function renderManagerSettings() {
         <textarea class="tarea" id="st-desc" maxlength="500">${esc(mk.description || '')}</textarea></div>
       <div class="field"><label for="st-emoji">อิโมจิประจำตลาด</label>
         <input class="tin" id="st-emoji" maxlength="8" value="${esc(mk.emoji || '🏪')}"></div>
+      <div class="field"><label for="st-type">ประเภทตลาด (ลูกค้าใช้กรอง ☀️/🌙)</label>
+        <select class="tin" id="st-type">
+          <option value="night" ${mk.market_type !== 'day' ? 'selected' : ''}>🌙 ตลาดกลางคืน (ตลาดนัด)</option>
+          <option value="day" ${mk.market_type === 'day' ? 'selected' : ''}>☀️ ตลาดกลางวัน (ตลาดสด · ตลาดเช้า)</option>
+        </select></div>
       <button class="btn primary block" id="st-save" type="button">บันทึกข้อมูลตลาด</button>
     </section>
 
@@ -2094,12 +2105,14 @@ async function renderManagerSettings() {
           hours_text: $('#st-hours').value,
           description: $('#st-desc').value,
           emoji: $('#st-emoji').value,
+          market_type: $('#st-type').value,
         },
       });
       toast('บันทึกข้อมูลตลาดแล้ว', 'ok');
       applyMarketUpdate({
         name: $('#st-name').value, area: $('#st-area').value,
         hours_text: $('#st-hours').value, emoji: $('#st-emoji').value,
+        market_type: $('#st-type').value,
       });
     } catch (e) {
       toast(e.message, 'err');

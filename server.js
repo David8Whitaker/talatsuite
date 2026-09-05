@@ -1154,12 +1154,13 @@ app.post('/api/markets', async (req, res) => {
     const forceOpen = sched.force_open !== undefined ? sched.force_open : null;
     const { rows: max } = await pool.query('SELECT COALESCE(MAX(sort_order),0)::int AS m FROM markets');
     const geo = readGeoBody(b);
+    const marketType = b.market_type === 'day' ? 'day' : 'night';
     const { rows } = await pool.query(
-      `INSERT INTO markets (name, area, description, hours_text, emoji, open_days, open_time, close_time, force_open, open_today, sort_order, address, lat, lng, announcement)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+      `INSERT INTO markets (name, area, description, hours_text, emoji, open_days, open_time, close_time, force_open, open_today, sort_order, address, lat, lng, announcement, market_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
       [name, cleanStr(b.area, 160), cleanStr(b.description, 500), cleanStr(b.hours_text, 120),
        cleanStr(b.emoji, 8) || '🏪', openDays, openTime, closeTime, forceOpen,
-       true, max[0].m + 1, geo.address || '', geo.lat || null, geo.lng || null, geo.announcement || '']
+       true, max[0].m + 1, geo.address || '', geo.lat || null, geo.lng || null, geo.announcement || '', marketType]
     );
     await audit(u, 'market.create', `สร้างตลาด "${name}"`, rows[0].id, name);
     res.status(201).json({ ok: true, market: { ...rows[0], ...marketPublicSchedule(rows[0]) } });
@@ -1195,14 +1196,15 @@ app.put('/api/markets/:id', async (req, res) => {
     f.announcement = geo.announcement !== undefined ? geo.announcement : cur[0].announcement;
     f.lat = geo.lat !== undefined ? geo.lat : cur[0].lat;
     f.lng = geo.lng !== undefined ? geo.lng : cur[0].lng;
+    f.market_type = b.market_type !== undefined ? (b.market_type === 'day' ? 'day' : 'night') : cur[0].market_type;
     const { rows } = await pool.query(
       `UPDATE markets SET name=$2, area=$3, description=$4, hours_text=$5, emoji=$6, open_today=$7,
               open_days=$8, open_time=$9, close_time=$10, force_open=$11,
-              address=$12, lat=$13, lng=$14, announcement=$15
+              address=$12, lat=$13, lng=$14, announcement=$15, market_type=$16
        WHERE id=$1 RETURNING *`,
       [id, f.name, f.area, f.description, f.hours_text, f.emoji, f.open_today,
        f.open_days, f.open_time, f.close_time, f.force_open,
-       f.address, f.lat, f.lng, f.announcement]
+       f.address, f.lat, f.lng, f.announcement, f.market_type]
     );
     const actor = await currentUser(req);
     /* รายละเอียดบอกว่าแก้อะไรบ้าง — แอดมินไล่ย้อนหลังได้ง่าย */
@@ -1212,6 +1214,7 @@ app.put('/api/markets/:id', async (req, res) => {
       ['emoji', 'อิโมจิ'], ['open_today', 'เปิดวันนี้'], ['open_days', 'วันเปิด'], ['open_time', 'เวลาเปิด'],
       ['close_time', 'เวลาปิด'], ['force_open', 'บังคับเปิด/ปิด'],
       ['address', 'ที่อยู่'], ['lat', 'พิกัด'], ['lng', 'พิกัด'], ['announcement', 'ประกาศ'],
+      ['market_type', 'ประเภทตลาด'],
     ];
     for (const [k, label] of labels) {
       const was = cur[0][k] == null ? '' : String(cur[0][k]);
