@@ -647,6 +647,38 @@ function renderNav() {
     bb.classList.toggle('bb-many', 1 + items.length >= 5);
   }
   updateNavOn();
+  /* ป้ายใบสมัครรอพิจารณา — แอดมิน/ผจก. เห็นทันทีที่เปิดแอป */
+  refreshAppBadge();
+}
+
+/* ── ป้ายจำนวนใบสมัครรอพิจารณา (ปุ่ม "ใบสมัคร" บน nav) ── */
+function paintAppBadge(n) {
+  state.pendingApps = n;
+  $$('#side-nav .nav-pad[data-nav="apps"], #bottombar .bb-pad[data-nav="apps"]').forEach((b) => {
+    let el = b.querySelector('.nav-badge');
+    if (!el) {
+      el = document.createElement('span');
+      el.className = 'nav-badge';
+      b.appendChild(el);
+    }
+    el.textContent = n > 99 ? '99+' : String(n);
+    el.style.display = n > 0 ? '' : 'none';
+  });
+}
+
+async function refreshAppBadge() {
+  try {
+    if (state.user && state.user.role === 'admin') {
+      const all = await api('/api/admin/applications');
+      let apps = (all.applications || []).filter((a) => a.status === 'pending');
+      /* แอดมินที่เปิดคอนโซลตลาด → นับเฉพาะตลาดนั้น (เหมือนหน้าใบสมัคร) */
+      if (state.role === 'manager') apps = apps.filter((a) => a.kind === 'shop' && Number(a.market_id) === Number(state.manager.marketId));
+      paintAppBadge(apps.length);
+    } else if (state.role === 'manager') {
+      const data = await api('/api/manager/applications');
+      paintAppBadge((data.applications || []).filter((a) => a.status === 'pending').length);
+    }
+  } catch (e) { /* แค่ป้าย — เงียบไว้ */ }
 }
 
 function updateNavOn() {
@@ -2696,6 +2728,7 @@ async function renderManagerApplications() {
   if (!box) return;
   if (data === null) { appLoadErrorState(box, () => renderManagerApplications()); return; }
   const apps = data.applications || [];
+  paintAppBadge(apps.filter((a) => a.status === 'pending').length);
   if (!apps.length) {
     box.innerHTML = `<div class="empty"><div class="e-emo">📭</div><b>ยังไม่มีใบสมัคร</b><p>เมื่อร้านค้าสมัครเข้าร่วมตลาดของคุณ ใบสมัครจะแสดงที่นี่พร้อมปุ่มอนุมัติ/ปฏิเสธ</p></div>`;
     return;
@@ -2726,6 +2759,7 @@ async function renderAdminApplications() {
   if (!box) return;
   if (data === null) { appLoadErrorState(box, () => renderAdminApplications()); return; }
   const apps = data.applications || [];
+  paintAppBadge(apps.filter((a) => a.status === 'pending').length);
   if (!apps.length) {
     box.innerHTML = `<div class="empty"><div class="e-emo">📭</div><b>ยังไม่มีใบสมัคร</b><p>ใบสมัครตลาดใหม่และร้านค้าใหม่จะแสดงที่นี่</p></div>`;
     return;
@@ -4655,6 +4689,7 @@ window.addEventListener('focus', () => {
   if (state.role === 'manager' && state.manager.tab === 'home') loadMarket();
   else if (state.role === 'vendor' && state.vendor.shopId) loadVendorData({ silent: true });
   else if (state.role === 'customer' && state.customer.tab === 'orders') renderCustomerOrders({ silent: !!$('#cu-orders') });
+  if (state.role === 'admin' || state.role === 'manager') refreshAppBadge();
 });
 
 window.addEventListener('hashchange', () => {

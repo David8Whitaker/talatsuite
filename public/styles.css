@@ -1616,3 +1616,15 @@ a.map-frame.map-frame-link:active { transform: scale(.99); }
 .kc-customer .kc-call:active { opacity: .6; }
 /* ปุ่มสั่งอีกครั้งบนการ์ดออเดอร์ */
 .myo-reorder { font-weight: 700; }
+
+/* ── ป้ายใบสมัครรอพิจารณา บนปุ่ม nav "ใบสมัคร" (แอดมิน/ผจก.) ── */
+.nav-pad, .bb-pad { position: relative; }
+.nav-badge {
+  position: absolute; top: 7px; right: 10px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: #d93025; color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+.bb-pad .nav-badge { top: 3px; right: 50%; margin-right: -30px; }
