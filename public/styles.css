@@ -1628,3 +1628,7 @@ a.map-frame.map-frame-link:active { transform: scale(.99); }
   box-shadow: 0 1px 4px rgba(0,0,0,.25);
 }
 .bb-pad .nav-badge { top: 3px; right: 50%; margin-right: -30px; }
+
+/* ── ปุ่มติดตั้งแอป (หน้าแรก · แสดงเมื่อเบราว์เซอร์พร้อม) ── */
+.start-install { margin-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.start-install small { color: var(--muted); font-size: 12px; }

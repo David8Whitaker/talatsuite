@@ -668,16 +668,24 @@ function paintAppBadge(n) {
 
 async function refreshAppBadge() {
   try {
+    let n = null;
     if (state.user && state.user.role === 'admin') {
       const all = await api('/api/admin/applications');
       let apps = (all.applications || []).filter((a) => a.status === 'pending');
       /* แอดมินที่เปิดคอนโซลตลาด → นับเฉพาะตลาดนั้น (เหมือนหน้าใบสมัคร) */
       if (state.role === 'manager') apps = apps.filter((a) => a.kind === 'shop' && Number(a.market_id) === Number(state.manager.marketId));
-      paintAppBadge(apps.length);
+      n = apps.length;
     } else if (state.role === 'manager') {
       const data = await api('/api/manager/applications');
-      paintAppBadge((data.applications || []).filter((a) => a.status === 'pending').length);
+      n = (data.applications || []).filter((a) => a.status === 'pending').length;
     }
+    if (n === null) return;
+    /* มีใบสมัครใหม่เข้าระหว่างแอปเปิดอยู่ → เตือนทันที */
+    if (typeof state.pendingApps === 'number' && n > state.pendingApps) {
+      beep('new');
+      toast(`📨 มีใบสมัครใหม่รอพิจารณา (${n} ใบ)`, 'ok');
+    }
+    paintAppBadge(n);
   } catch (e) { /* แค่ป้าย — เงียบไว้ */ }
 }
 
@@ -738,6 +746,11 @@ function showStart() {
           <span> · </span>
           <button class="linklike" data-start="register" type="button">📝 สมัครสมาชิก (ลูกค้า)</button>
         </div>
+        ${state.installPrompt ? `
+        <div class="start-install">
+          <button class="btn gold" id="install-btn" type="button">📱 ติดตั้งแอปบนหน้าจอหลัก</button>
+          <small>ใช้เหมือนแอปปกติ · เปิดเร็ว · มีไอคอนของตัวเอง</small>
+        </div>` : ''}
       </div>
 
       ${u ? `
@@ -749,9 +762,82 @@ function showStart() {
       <p class="start-foot">ร้านค้าและผู้จัดการตลาดสมัครเองได้เลย — ทุกใบสมัครจะได้รับการอนุมัติก่อนเผยแพร่ · ลูกค้าสั่งอาหารสมัครฟรีด้วยเบอร์โทร</p>
     </div>`;
   bindLangSwitch();
+  const ib = $('#install-btn');
+  if (ib) ib.addEventListener('click', async () => {
+    const ev = state.installPrompt;
+    if (!ev) return;
+    ib.disabled = true;
+    try { await ev.prompt(); } catch (e) {}
+    state.installPrompt = null;
+    ib.closest('.start-install')?.remove();
+  });
 }
 
-/* ── เข้าสู่ระบบ (หน้าเต็ม) ── */
+/* ── PWA: ติดตั้งแอป + แจ้งเตือนระบบ (ทำงานเหมือนแอปจริง) ── */
+function setupPWA() {
+  /* ลงทะเบียน service worker (แคชหน้าแอปไว้ เปิดเร็ว/ออฟไลน์ได้) */
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+  /* เบราว์เซอร์พร้อมให้ติดตั้ง → เก็บ event ไว้ให้ปุ่ม "ติดตั้งแอป" เรียก */
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    state.installPrompt = e;
+    const box = document.querySelector('.welcome-actions .start-links');
+    if (box && !$('#install-btn')) {
+      const div = document.createElement('div');
+      div.className = 'start-install';
+      div.innerHTML = '<button class="btn gold" id="install-btn" type="button">📱 ติดตั้งแอปบนหน้าจอหลัก</button><small>ใช้เหมือนแอปปกติ · เปิดเร็ว · มีไอคอนของตัวเอง</small>';
+      box.after(div);
+      div.querySelector('#install-btn').addEventListener('click', async () => {
+        const ev = state.installPrompt;
+        if (!ev) return;
+        try { await ev.prompt(); } catch (e2) {}
+        state.installPrompt = null;
+        div.remove();
+      });
+    }
+  });
+  window.addEventListener('appinstalled', () => {
+    state.installPrompt = null;
+    document.querySelector('.start-install')?.remove();
+    toast('📱 ติดตั้งแอปเรียบร้อย — เปิดจากไอคอนได้เลย', 'ok');
+    setTimeout(maybeAskNotifications, 1200);
+  });
+}
+
+/* ── ถามสิทธิ์แจ้งเตือนระบบครั้งแรก (หลังล็อกอิน/ติดตั้งแอป) ── */
+function maybeAskNotifications() {
+  try {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'default') return;          /* granted/denied ไปแล้ว */
+    if (store.get('talatsuite.notiAsked')) return;              /* เคยถามแล้วไม่ถามซ้ำ */
+    const u = state.user;
+    const benefit = !u ? 'ลูกค้า: แจ้งเมื่ออาหารพร้อม'
+      : u.role === 'vendor' ? 'ร้านค้า: แจ้งทันทีที่มีออเดอร์ใหม่ + คิวครัว'
+      : (u.role === 'admin' || u.role === 'manager') ? 'ผู้จัดการ: แจ้งเมื่อมีใบสมัครใหม่เข้ามา'
+      : 'ลูกค้า: แจ้งเมื่ออาหารพร้อม';
+    const md = openModal({
+      title: '🔔 เปิดแจ้งเตือนไหมครับ?',
+      sub: 'แจ้งเตือนแบบเดียวกับแอปทั่วไป',
+      icon: IC.bell,
+      center: true,
+      body: `
+        <div class="ok-emo">🔔</div>
+        <p style="text-align:center;margin:0 0 4px"><b>${esc(benefit)}</b></p>
+        <p class="hint" style="text-align:center">เปิดไว้แล้วจะไม่พลาดออเดอร์และความเคลื่อนไหวสำคัญ — ปิดที่หน้า "ออเดอร์ของฉัน" ได้ตลอด</p>
+        <button class="btn primary block" id="noti-yes" type="button">เปิดแจ้งเตือน</button>
+        <button class="btn ghost block" id="noti-later" type="button" style="margin-top:8px">ไว้ก่อน</button>`,
+    });
+    md.body.querySelector('#noti-yes').addEventListener('click', async () => {
+      const ok = await askNotifyPermission();
+      toast(ok ? '🔔 เปิดแจ้งเตือนแล้ว' : 'เบราว์เซอร์ไม่อนุญาต — เปิดใหม่ได้ที่หน้าออเดอร์', ok ? 'ok' : 'err');
+      md.close();
+    });
+    md.body.querySelector('#noti-later').addEventListener('click', () => md.close());
+    store.set('talatsuite.notiAsked', '1');
+  } catch (e) { /* ไม่ซีเรียส */ }
+}
 function openLoginScreen() {
   viewEl.dataset.app = 'start';
   overlayRoot.innerHTML = '';
@@ -765,7 +851,7 @@ function openLoginScreen() {
         <h2>เข้าสู่ระบบ</h2>
         <p class="login-sub">ผู้จัดการตลาด · ร้านค้า · ลูกค้าสมาชิก · แอดมิน</p>
         <div class="field"><label for="lg-login">ชื่อผู้ใช้ หรือ เบอร์โทร</label>
-          <input class="tin" id="lg-login" maxlength="60" autocomplete="username" placeholder="เช่น somchai / 0891234567"></div>
+          <input class="tin" id="lg-login" maxlength="60" autocomplete="username" placeholder="ชื่อผู้ใช้ / เบอร์โทรศัพท์"></div>
         <div class="field"><label for="lg-pass">รหัสผ่าน</label>
           <input class="tin" id="lg-pass" type="password" maxlength="100" autocomplete="current-password" placeholder="••••••••"></div>
         <button class="btn primary block" id="lg-go" type="button">เข้าสู่ระบบ</button>
@@ -774,12 +860,13 @@ function openLoginScreen() {
           <span> · </span>
           <button class="linklike" data-start="browse" type="button">เข้าชมตลาดแบบไม่สมัคร</button>
         </div>
+        ${state.demoMode ? `
         <div class="login-demo">
           <b>บัญชีทดลอง (แตะเพื่อกรอกให้อัตโนมัติ)</b>
           <div class="demo-accounts">
             <button type="button" class="demo-acct" data-lg="admin|admin123">🛡️ admin / admin123</button><button type="button" class="demo-acct" data-lg="somchai|market123">🏪 somchai / market123</button><button type="button" class="demo-acct" data-lg="pizzabee|vendor123">🍜 pizzabee / vendor123</button><button type="button" class="demo-acct" data-lg="0890000001|cust123">🛒 0890000001 / cust123</button>
           </div>
-        </div>
+        </div>` : ''}
       </div>
     </div>`;
   const go = async () => {
@@ -816,6 +903,7 @@ function routeAfterLogin(user) {
   else if (user.role === 'manager') chooseRole('manager');
   else if (user.role === 'vendor') chooseRole('vendor');
   else chooseRole('customer');
+  setTimeout(maybeAskNotifications, 1500);
 }
 
 /* ── สมัครสมาชิกลูกค้า (modal) — ร้านค้า/ผจก.สมัครผ่านหน้า "สมัครเปิดร้าน/ยื่นตลาด" (v6) ── */
@@ -2556,7 +2644,7 @@ function renderManagerApply() {
         <input class="tin" id="ma-name" maxlength="120" placeholder="เช่น สมชาย ใจดี"></div>
       <div class="field-row">
         <div class="field"><label for="ma-login">ชื่อผู้ใช้ (a-z, 0-9)</label>
-          <input class="tin" id="ma-login" maxlength="60" placeholder="เช่น somchai"></div>
+          <input class="tin" id="ma-login" maxlength="60" placeholder="เช่น rangsit_market"></div>
         <div class="field"><label for="ma-pass">รหัสผ่าน (4 ตัวขึ้นไป)</label>
           <input class="tin" id="ma-pass" type="password" maxlength="100" placeholder="••••••••"></div>
       </div>
@@ -4659,6 +4747,7 @@ async function checkHealth() {
   try {
     const r = await api('/api/health');
     ok = !!r.db;
+    if (typeof r.demo === 'boolean') state.demoMode = r.demo;
   } catch { ok = false; }
   const side = $('#db-chip-side');
   if (side) {
@@ -4680,6 +4769,8 @@ setInterval(() => {
     loadVendorData({ silent: true });
   } else if (state.role === 'customer' && state.customer.tab === 'orders') {
     renderCustomerOrders({ silent: !!$('#cu-orders') });
+  } else if (state.role === 'admin' || (state.role === 'manager' && state.user)) {
+    refreshAppBadge(); /* ใบสมัครใหม่แจ้งเตือนสด ๆ ขณะแอปเปิดอยู่ */
   }
 }, 6000);
 
@@ -5546,7 +5637,7 @@ async function openAdminUserSheet(editUser, presetMarketId) {
         <input class="tin" id="au-name" maxlength="120" placeholder="เช่น สมชาย ใจดี" value="${isEdit ? esc(editUser.display_name) : ''}"></div>
       ${isEdit ? '' : `
       <div class="field"><label for="au-login">ชื่อผู้ใช้ (a-z, 0-9 — เข้าสู่ระบบด้วยชื่อนี้)</label>
-        <input class="tin" id="au-login" maxlength="60" placeholder="เช่น somchai" autocomplete="off"></div>`}
+        <input class="tin" id="au-login" maxlength="60" placeholder="เช่น somying01" autocomplete="off"></div>`}
       <div class="field"><label for="au-phone">เบอร์โทร</label>
         <input class="tin" id="au-phone" maxlength="32" placeholder="08x-xxx-xxxx" value="${isEdit && editUser.phone ? esc(editUser.phone) : ''}"></div>
       <div class="field"><label for="au-pass">${isEdit ? 'รีเซ็ตรหัสผ่าน (เว้นว่าง = ไม่เปลี่ยน)' : 'รหัสผ่าน (4 ตัวขึ้นไป)'}</label>
@@ -5654,7 +5745,8 @@ window.__tsRerender = function () {
   if (window.TS && TS.init) TS.init();
   loadGuestOrders();
   bindLangSwitch();
-  checkHealth();
+  setupPWA();
+  await checkHealth(); /* รู้โหมด demo ก่อนวาดหน้าล็อกอิน (ซ่อนบัญชีทดลองบน production) */
   /* เซสชันที่จำไว้ → ฟื้นผู้ใช้ก่อน */
   const token = store.get('talatsuite.token');
   if (token) {

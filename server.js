@@ -634,7 +634,7 @@ function cleanStr(v, max) {
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, db: true, service: 'TalatSuite', time: new Date().toISOString() });
+    res.json({ ok: true, db: true, service: 'TalatSuite', time: new Date().toISOString(), demo: process.env.SEED_DEMO !== 'false' });
   } catch {
     res.status(503).json({ ok: true, db: false, error: 'เชื่อมต่อฐานข้อมูลไม่สำเร็จ' });
   }
