@@ -290,14 +290,28 @@ function saveGuestOrder(entry) {
 
 async function api(path, { method = 'GET', body } = {}) {
   const token = store.get('talatsuite.token');
-  const res = await fetch(path, {
+  const opts = {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: 'Bearer ' + token } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
-  });
+  };
+  /* เน็ตขัดข้อง (เซิร์ฟเวอร์กำลังตื่นจากโหมดพักของแผนฟรี / รีสตาร์ทสั้น ๆ)
+     — GET ลองใหม่อัตโนมัติ 1 ครั้ง · POST ไม่ส่งซ้ำอัตโนมัติ (กันออเดอร์ซ้ำ) แต่แจ้งเตือนเป็นภาษาคน */
+  let res;
+  try {
+    res = await fetch(path, opts);
+  } catch (netErr) {
+    if (method === 'GET') {
+      await new Promise((r) => setTimeout(r, 4000));
+      try { res = await fetch(path, opts); }
+      catch (e2) { throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ระบบอาจกำลังตื่นจากโหมดพัก (แผนฟรี) รอสักครู่แล้วลองใหม่ครับ'); }
+    } else {
+      throw new Error('การเชื่อมต่อขัดข้องกลางคัน — ระบบอาจกำลังตื่นจากโหมดพัก กรุณารอ 1 นาทีแล้วกดส่งใหม่ครับ (ห้ามรีเฟรชซ้ำ ๆ)');
+    }
+  }
   let data = null;
   try { data = await res.json(); } catch { /* no body */ }
   /* 401 จาก endpoint ยืนยันตัวตน (รหัสผ่าน/รหัสล็อคผิด) เป็นเรื่องปกติ — ห้ามไล่ออก */
@@ -307,7 +321,10 @@ async function api(path, { method = 'GET', body } = {}) {
     logoutLocal();
     toast('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง', 'err');
   }
-  if (!res.ok) throw new Error((data && data.error) || `เกิดข้อผิดพลาด (${res.status})`);
+  if (!res.ok) throw new Error(
+    (data && data.error)
+    || (res.status >= 500 ? 'ระบบขัดข้องชั่วคราว — รอสักครู่แล้วลองใหม่ครับ' : `เกิดข้อผิดพลาด (${res.status})`)
+  );
   return data;
 }
 
@@ -2310,15 +2327,26 @@ async function renderVendorApply({ fromDashboard = false } = {}) {
     </div>`;
   const back = $('#va-back');
   if (back) back.addEventListener('click', () => { chooseRole('vendor'); });
-  let markets = [];
-  try { markets = (await api('/api/markets')).markets || []; } catch (e) {}
   const box = $('#va-markets');
   if (!box) return;
-  if (!markets.length) {
-    box.innerHTML = `<div class="empty"><div class="e-emo">🏪</div><b>ยังไม่มีตลาดที่เปิดรับร้านค้า</b><p>โปรดกลับมาใหม่อีกครั้ง — หรือถ้าคุณเป็นเจ้าของพื้นที่ ลอง "ยื่นเปิดตลาดใหม่" ที่หน้าแรกครับ</p></div>`;
-    return;
-  }
-  box.innerHTML = `
+  const loadMarkets = async () => {
+    let markets = null;
+    try { markets = (await api('/api/markets')).markets || []; } catch (e) { markets = null; }
+    if (markets === null) {
+      box.innerHTML = `<div class="empty"><div class="e-emo">📡</div><b>เชื่อมต่อระบบไม่สำเร็จ</b><p>เซิร์ฟเวอร์อาจกำลังตื่นจากโหมดพัก (แผนฟรี) — รอสักครู่แล้วกดลองใหม่ครับ</p><button class="btn sm" id="va-retry" type="button">🔄 ลองใหม่</button></div>`;
+      const rb = $('#va-retry');
+      if (rb) rb.addEventListener('click', () => {
+        rb.disabled = true;
+        box.innerHTML = '<div class="skel" style="height:140px"></div>';
+        loadMarkets();
+      });
+      return;
+    }
+    if (!markets.length) {
+      box.innerHTML = `<div class="empty"><div class="e-emo">🏪</div><b>ยังไม่มีตลาดที่เปิดรับร้านค้า</b><p>โปรดกลับมาใหม่อีกครั้ง — หรือถ้าคุณเป็นเจ้าของพื้นที่ ลอง "ยื่นเปิดตลาดใหม่" ที่หน้าแรกครับ</p></div>`;
+      return;
+    }
+    box.innerHTML = `
     <div class="mk-grid va">
       ${markets.map((mk) => `
         <div class="mk-card va">
@@ -2332,10 +2360,12 @@ async function renderVendorApply({ fromDashboard = false } = {}) {
           <button class="btn gold sm" data-va-apply="${mk.id}" type="button">สมัครเปิดร้าน</button>
         </div>`).join('')}
     </div>`;
-  $$('[data-va-apply]').forEach((b) => b.addEventListener('click', () => {
-    const mk = markets.find((x) => String(x.id) === b.dataset.vaApply);
-    if (mk) openVendorApplySheet(mk);
-  }));
+    $$('[data-va-apply]').forEach((b) => b.addEventListener('click', () => {
+      const mk = markets.find((x) => String(x.id) === b.dataset.vaApply);
+      if (mk) openVendorApplySheet(mk);
+    }));
+  };
+  await loadMarkets();
 }
 
 /* ── ชีตสมัครเปิดร้านในตลาด (บัญชี + ข้อมูลร้าน + เลือกล็อค) ── */
@@ -2344,7 +2374,8 @@ async function openVendorApplySheet(market) {
   const isVendor = u && u.role === 'vendor';
   /* โหลดผังล็อค */
   let lots = [];
-  try { lots = (await api(`/api/public/market-lots?market_id=${market.id}`)).lots || []; } catch (e) {}
+  try { lots = (await api(`/api/public/market-lots?market_id=${market.id}`)).lots || []; }
+  catch (e) { toast(e.message, 'err'); return; }
   const freeLots = lots.filter((l) => !l.taken);
   const md = openModal({
     title: `สมัครเปิดร้านใน "${market.name}"`,
