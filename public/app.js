@@ -2653,6 +2653,12 @@ async function renderManagerApplyStatus() {
 }
 
 /* ── ผจก.: ใบสมัครร้านค้าเข้าร่วมตลาด ── */
+function appLoadErrorState(box, retryFn) {
+  box.innerHTML = `<div class="empty"><div class="e-emo">📡</div><b>เชื่อมต่อระบบไม่สำเร็จ</b><p>เซิร์ฟเวอร์อาจกำลังตื่นจากโหมดพัก — รอสักครู่แล้วกดลองใหม่ครับ</p><button class="btn sm" type="button">🔄 ลองใหม่</button></div>`;
+  const rb = box.querySelector('button');
+  if (rb) rb.addEventListener('click', () => { box.innerHTML = '<div class="skel" style="height:180px"></div>'; retryFn(); });
+}
+
 async function renderManagerApplications() {
   viewEl.dataset.app = 'manager';
   viewEl.innerHTML = `
@@ -2663,10 +2669,19 @@ async function renderManagerApplications() {
       </div>
     </header>
     <div id="mgr-apps"><div class="skel" style="height:180px"></div></div>`;
-  let data = { applications: [] };
-  try { data = await api('/api/manager/applications'); } catch (e) {}
+  let data = null;
+  try {
+    if (state.user && state.user.role === 'admin') {
+      /* แอดมินที่เปิดคอนโซลตลาด — endpoint ผจก.ใช้ไม่ได้ (403) ให้ดึงของแอดมินแล้วกรองเฉพาะตลาดนี้ */
+      const all = await api('/api/admin/applications');
+      data = { applications: (all.applications || []).filter((a) => a.kind === 'shop' && Number(a.market_id) === Number(state.manager.marketId)) };
+    } else {
+      data = await api('/api/manager/applications');
+    }
+  } catch (e) { data = null; }
   const box = $('#mgr-apps');
   if (!box) return;
+  if (data === null) { appLoadErrorState(box, () => renderManagerApplications()); return; }
   const apps = data.applications || [];
   if (!apps.length) {
     box.innerHTML = `<div class="empty"><div class="e-emo">📭</div><b>ยังไม่มีใบสมัคร</b><p>เมื่อร้านค้าสมัครเข้าร่วมตลาดของคุณ ใบสมัครจะแสดงที่นี่พร้อมปุ่มอนุมัติ/ปฏิเสธ</p></div>`;
@@ -2692,10 +2707,11 @@ async function renderAdminApplications() {
       </div>
     </header>
     <div id="adm-apps"><div class="skel" style="height:180px"></div></div>`;
-  let data = { applications: [] };
-  try { data = await api('/api/admin/applications'); } catch (e) {}
+  let data = null;
+  try { data = await api('/api/admin/applications'); } catch (e) { data = null; }
   const box = $('#adm-apps');
   if (!box) return;
+  if (data === null) { appLoadErrorState(box, () => renderAdminApplications()); return; }
   const apps = data.applications || [];
   if (!apps.length) {
     box.innerHTML = `<div class="empty"><div class="e-emo">📭</div><b>ยังไม่มีใบสมัคร</b><p>ใบสมัครตลาดใหม่และร้านค้าใหม่จะแสดงที่นี่</p></div>`;
