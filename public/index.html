@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TalatSuite — ชุดเครื่องมือจัดการตลาด</title>
+<meta name="description" content="TalatSuite: แพลตฟอร์มตลาด 3 ใน 1 — ผู้จัดการตลาด ร้านค้าอาหาร และลูกค้าสั่งอาหาร">
+<meta name="theme-color" content="#0e3a2b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏪%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════ Sidebar (desktop / tablet landscape) ══════════ -->
+  <aside id="sidebar" aria-label="เมนูนำทางหลัก">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="34" height="34" fill="none">
+          <path d="M6 20 L10 8 H38 L42 20" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M6 20 C6 24.4 9.1 28 13 28 C16.9 28 20 24.4 20 20 C20 24.4 23.1 28 27 28 C30.9 28 34 24.4 34 20 C34 24.4 37.1 28 41 28" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 8 L38 8 M9 28 V40 H39 V28" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20 40 V32 H28 V40" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>TalatSuite</h1>
+        <p id="brand-sub">แพลตฟอร์มจัดการตลาด</p>
+      </div>
+    </div>
+
+    <nav class="side-nav" id="side-nav"></nav>
+
+    <div class="side-foot">
+      <div id="side-user"></div>
+      <div class="db-chip" id="db-chip-side"><span class="dot"></span><span class="tx">กำลังตรวจสอบฐานข้อมูล…</span></div>
+      <div class="lang-switch" id="lang-switch-side" role="group" aria-label="ภาษา / Language">
+        <button type="button" data-lang="th">ไทย</button><button type="button" data-lang="en">EN</button>
+      </div>
+      <p class="ver">TalatSuite v5.4 · ส่งออกไฟล์ได้จริงบนมือถือ · สองภาษาสมบูรณ์สองทิศทาง</p>
+    </div>
+  </aside>
+
+  <!-- ══════════ Main content ══════════ -->
+  <main id="main">
+    <div id="view" class="view"></div>
+    <div id="bottombar-spacer" aria-hidden="true"></div>
+  </main>
+
+  <!-- ══════════ Bottom navigation pads (mobile) ══════════ -->
+  <nav id="bottombar" aria-label="เมนูนำทางหลัก"></nav>
+</div>
+
+<!-- ══════════ ล็อคหน้าจอ (passcode) ══════════ -->
+<div id="lock-screen" hidden aria-hidden="true">
+  <div class="lock-card">
+    <div class="lock-emo" aria-hidden="true">🔒</div>
+    <h2>TalatSuite ถูกล็อค</h2>
+    <p id="lock-who">กรอกรหัสล็อคเพื่อเข้าใช้งานต่อ</p>
+    <input id="lock-input" type="password" inputmode="numeric" autocomplete="off" maxlength="8"
+           placeholder="• • • •" aria-label="รหัสล็อค">
+    <button class="btn primary block" id="lock-unlock" type="button">ปลดล็อค</button>
+    <button class="btn ghost block" id="lock-exit" type="button">ออกจากระบบบัญชีนี้</button>
+    <p class="lock-hint" id="lock-err"></p>
+  </div>
+</div>
+
+<div id="overlay-root"></div>
+<div id="toast-root" role="status" aria-live="polite"></div>
+
+<script src="/i18n.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
